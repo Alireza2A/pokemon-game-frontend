@@ -1,4 +1,3 @@
-// src/context/RosterContext.js
 import { createContext, useContext, useState, useEffect } from "react";
 
 // Create Context
@@ -25,19 +24,19 @@ export const RosterProvider = ({ children }) => {
     localStorage.setItem("pokemonRoster", JSON.stringify(roster));
   }, [roster]);
 
-  // Add Pokémon to the roster
+  // Add to the roster
   const addPokemon = (pokemon) => {
     if (!roster.find((p) => p.id === pokemon.id)) {
       setRoster([...roster, pokemon]);
     }
   };
 
-  // Remove Pokémon from the roster
+  // Remove from the roster
   const removePokemon = (id) => {
     setRoster(roster.filter((p) => p.id !== id));
   };
 
-  // Check if a Pokémon is in the roster
+  // Check if is in the roster
   const isPokemonInRoster = (id) => {
     return roster.some((pokemon) => pokemon.id === id);
   };
@@ -57,5 +56,5 @@ export const RosterProvider = ({ children }) => {
   );
 };
 
-// Custom hook to use the context
+// Hook to use the context
 export const useRoster = () => useContext(RosterContext);
