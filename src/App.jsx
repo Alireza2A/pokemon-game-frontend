@@ -1,17 +1,24 @@
-import { useState } from 'react';
-import reactLogo from './assets/react.svg';
-import viteLogo from '/vite.svg';
-import './App.css';
+// src/App.jsx
+import { BrowserRouter as Router, Routes, Route } from "react-router";
+import { RosterProvider } from "./context/RosterContext";
+import MyRoster from "./pages/MyRoster";
+import Navbar from "./components/Navbar";
 
-function App() {
-    const [count, setCount] = useState(0);
-
-    return (
-        <>
-            <button className="btn btn-outline btn-secondary">Secondary</button>
-            <p className="text-blue-500">This is test</p>
-        </>
-    );
-}
+const App = () => {
+  return (
+    <RosterProvider>
+      <Router>
+        <div className="min-h-screen bg-gray-50">
+          <Navbar />
+          <main className="container mx-auto px-4 py-6">
+            <Routes>
+              <Route path="/roster" element={<MyRoster />} />
+            </Routes>
+          </main>
+        </div>
+      </Router>
+    </RosterProvider>
+  );
+};
 
 export default App;
