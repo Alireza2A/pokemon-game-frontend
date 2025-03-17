@@ -1,5 +1,5 @@
 // ==========================
-// Your Code (Julia's Code)
+// Julia's Code
 // ==========================
 const API_URL = "https://pokeapi.co/api/v2/pokemon"; 
 
