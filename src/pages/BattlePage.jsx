@@ -1,44 +1,50 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'react-router-dom';
-import { useRoster } from '../context/RosterContext';
-import { fetchWildPokemon, fetchPlayerPokemon, updatePokemonStats, recordBattleResult, updateLeaderboard } from '../services/api';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useRoster } from "../context/RosterContext";
+import {
+  fetchWildPokemon,
+  fetchPlayerPokemon,
+  updatePokemonStats,
+  recordBattleResult,
+  updateLeaderboard,
+} from "../services/api";
 
 export default function BattlePage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { activePokemon, updateRoster } = useRoster();
-  
+
   const [battleState, setBattleState] = useState({
     isLoading: true,
     isPlayerTurn: true,
     isBattleOver: false,
     battleLog: [],
-    result: null
+    result: null,
   });
 
   const [playerPokemon, setPlayerPokemon] = useState({
-    id: '',
-    name: '',
+    id: "",
+    name: "",
     level: 1,
     maxHp: 100,
     currentHp: 100,
     moves: [],
-    experience: 0
+    experience: 0,
   });
 
   const [wildPokemon, setWildPokemon] = useState({
-    id: '',
-    name: '',
+    id: "",
+    name: "",
     level: 1,
     maxHp: 100,
     currentHp: 100,
-    moves: []
+    moves: [],
   });
 
   useEffect(() => {
     if (!activePokemon) {
-      router.push('/my-roster');
+      navigate("/my-roster");
       return;
     }
     initializeBattle();
@@ -48,29 +54,29 @@ export default function BattlePage() {
     try {
       const [wildPokemonData, playerPokemonData] = await Promise.all([
         fetchWildPokemon(),
-        fetchPlayerPokemon(activePokemon.id)
+        fetchPlayerPokemon(activePokemon.id),
       ]);
 
       setWildPokemon({
         ...wildPokemonData,
-        currentHp: wildPokemonData.maxHp
+        currentHp: wildPokemonData.maxHp,
       });
 
       setPlayerPokemon({
         ...playerPokemonData,
-        currentHp: playerPokemonData.maxHp
+        currentHp: playerPokemonData.maxHp,
       });
 
-      setBattleState(prev => ({ 
-        ...prev, 
+      setBattleState((prev) => ({
+        ...prev,
         isLoading: false,
-        battleLog: [`A wild ${wildPokemonData.name} appeared!`]
+        battleLog: [`A wild ${wildPokemonData.name} appeared!`],
       }));
     } catch (error) {
-      console.error('Failed to initialize battle:', error);
-      setBattleState(prev => ({ 
-        ...prev, 
-        battleLog: [...prev.battleLog, 'Error initializing battle!']
+      console.error("Failed to initialize battle:", error);
+      setBattleState((prev) => ({
+        ...prev,
+        battleLog: [...prev.battleLog, "Error initializing battle!"],
       }));
     }
   };
@@ -78,11 +84,11 @@ export default function BattlePage() {
   const calculateDamage = (attacker, defender, move) => {
     const levelFactor = attacker.level / 5 + 2;
     const attackDefenseRatio = 1; // Simplified for now
-    const baseDamage = ((levelFactor * move.power * attackDefenseRatio) / 50) + 2;
-    
+    const baseDamage = (levelFactor * move.power * attackDefenseRatio) / 50 + 2;
+
     // Random factor between 0.85 and 1.0
     const randomFactor = 0.85 + Math.random() * 0.15;
-    
+
     return Math.floor(baseDamage * randomFactor);
   };
 
@@ -91,56 +97,68 @@ export default function BattlePage() {
 
     try {
       // Player's turn
-      const selectedMove = playerPokemon.moves.find(move => move.id === moveId);
+      const selectedMove = playerPokemon.moves.find(
+        (move) => move.id === moveId
+      );
       const damage = calculateDamage(playerPokemon, wildPokemon, selectedMove);
-      
+
       const newWildHp = Math.max(0, wildPokemon.currentHp - damage);
-      setWildPokemon(prev => ({
+      setWildPokemon((prev) => ({
         ...prev,
-        currentHp: newWildHp
+        currentHp: newWildHp,
       }));
 
-      setBattleState(prev => ({
+      setBattleState((prev) => ({
         ...prev,
         isPlayerTurn: false,
-        battleLog: [...prev.battleLog, `${playerPokemon.name} used ${selectedMove.name}! Dealt ${damage} damage!`]
+        battleLog: [
+          ...prev.battleLog,
+          `${playerPokemon.name} used ${selectedMove.name}! Dealt ${damage} damage!`,
+        ],
       }));
 
       // Check if wild Pokemon fainted
       if (newWildHp === 0) {
-        handleBattleEnd('win');
+        handleBattleEnd("win");
         return;
       }
 
       // Wild Pokemon's turn
       setTimeout(async () => {
         const wildMoves = wildPokemon.moves;
-        const randomMove = wildMoves[Math.floor(Math.random() * wildMoves.length)];
-        const wildDamage = calculateDamage(wildPokemon, playerPokemon, randomMove);
-        
+        const randomMove =
+          wildMoves[Math.floor(Math.random() * wildMoves.length)];
+        const wildDamage = calculateDamage(
+          wildPokemon,
+          playerPokemon,
+          randomMove
+        );
+
         const newPlayerHp = Math.max(0, playerPokemon.currentHp - wildDamage);
-        setPlayerPokemon(prev => ({
+        setPlayerPokemon((prev) => ({
           ...prev,
-          currentHp: newPlayerHp
+          currentHp: newPlayerHp,
         }));
 
-        setBattleState(prev => ({
+        setBattleState((prev) => ({
           ...prev,
           isPlayerTurn: true,
-          battleLog: [...prev.battleLog, `Wild ${wildPokemon.name} used ${randomMove.name}! Dealt ${wildDamage} damage!`]
+          battleLog: [
+            ...prev.battleLog,
+            `Wild ${wildPokemon.name} used ${randomMove.name}! Dealt ${wildDamage} damage!`,
+          ],
         }));
 
         // Check if player Pokemon fainted
         if (newPlayerHp === 0) {
-          handleBattleEnd('loss');
+          handleBattleEnd("loss");
         }
       }, 1000);
-
     } catch (error) {
-      console.error('Attack failed:', error);
-      setBattleState(prev => ({
+      console.error("Attack failed:", error);
+      setBattleState((prev) => ({
         ...prev,
-        battleLog: [...prev.battleLog, 'Attack failed!']
+        battleLog: [...prev.battleLog, "Attack failed!"],
       }));
     }
   };
@@ -151,19 +169,19 @@ export default function BattlePage() {
         playerPokemonId: playerPokemon.id,
         wildPokemonId: wildPokemon.id,
         result,
-        playerPokemonLevel: playerPokemon.level
+        playerPokemonLevel: playerPokemon.level,
       };
 
       // Record battle result
       await recordBattleResult(battleData);
 
-      if (result === 'win') {
+      if (result === "win") {
         // Update Pokemon stats
         const newLevel = playerPokemon.level + 1;
         const newStats = {
           level: newLevel,
           maxHp: 100 + (newLevel - 1) * 5, // 5 HP per level
-          experience: playerPokemon.experience + 1
+          experience: playerPokemon.experience + 1,
         };
 
         await updatePokemonStats(playerPokemon.id, newStats);
@@ -173,7 +191,7 @@ export default function BattlePage() {
         if (playerPokemon.level > 1) {
           const newStats = {
             level: playerPokemon.level - 1,
-            maxHp: 100 + (playerPokemon.level - 2) * 5
+            maxHp: 100 + (playerPokemon.level - 2) * 5,
           };
           await updatePokemonStats(playerPokemon.id, newStats);
           await updateRoster();
@@ -183,20 +201,25 @@ export default function BattlePage() {
       // Update leaderboard
       await updateLeaderboard({
         result,
-        pokemonId: playerPokemon.id
+        pokemonId: playerPokemon.id,
       });
 
-      setBattleState(prev => ({
+      setBattleState((prev) => ({
         ...prev,
         isBattleOver: true,
         result,
-        battleLog: [...prev.battleLog, result === 'win' ? 'Victory! Your Pokemon leveled up!' : 'Defeat! Your Pokemon lost a level!']
+        battleLog: [
+          ...prev.battleLog,
+          result === "win"
+            ? "Victory! Your Pokemon leveled up!"
+            : "Defeat! Your Pokemon lost a level!",
+        ],
       }));
     } catch (error) {
-      console.error('Failed to process battle end:', error);
-      setBattleState(prev => ({
+      console.error("Failed to process battle end:", error);
+      setBattleState((prev) => ({
         ...prev,
-        battleLog: [...prev.battleLog, 'Error processing battle result!']
+        battleLog: [...prev.battleLog, "Error processing battle result!"],
       }));
     }
   };
@@ -217,11 +240,17 @@ export default function BattlePage() {
           <div className="flex justify-between mb-8">
             {/* Wild Pokemon Stats */}
             <div className="w-1/3">
-              <h2 className="text-xl font-bold mb-2">Wild {wildPokemon.name}</h2>
+              <h2 className="text-xl font-bold mb-2">
+                Wild {wildPokemon.name}
+              </h2>
               <div className="bg-gray-200 rounded-full h-4">
-                <div 
+                <div
                   className="bg-green-500 rounded-full h-4"
-                  style={{ width: `${(wildPokemon.currentHp / wildPokemon.maxHp) * 100}%` }}
+                  style={{
+                    width: `${
+                      (wildPokemon.currentHp / wildPokemon.maxHp) * 100
+                    }%`,
+                  }}
                 ></div>
               </div>
               <p className="mt-1">Level: {wildPokemon.level}</p>
@@ -231,9 +260,13 @@ export default function BattlePage() {
             <div className="w-1/3 text-right">
               <h2 className="text-xl font-bold mb-2">{playerPokemon.name}</h2>
               <div className="bg-gray-200 rounded-full h-4">
-                <div 
+                <div
                   className="bg-green-500 rounded-full h-4"
-                  style={{ width: `${(playerPokemon.currentHp / playerPokemon.maxHp) * 100}%` }}
+                  style={{
+                    width: `${
+                      (playerPokemon.currentHp / playerPokemon.maxHp) * 100
+                    }%`,
+                  }}
                 ></div>
               </div>
               <p className="mt-1">Level: {playerPokemon.level}</p>
@@ -258,10 +291,10 @@ export default function BattlePage() {
             ) : (
               <div className="text-center">
                 <h3 className="text-2xl font-bold mb-4">
-                  {battleState.result === 'win' ? 'Victory!' : 'Defeat!'}
+                  {battleState.result === "win" ? "Victory!" : "Defeat!"}
                 </h3>
                 <button
-                  onClick={() => router.push('/my-roster')}
+                  onClick={() => navigate("/my-roster")}
                   className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
                 >
                   Return to Roster
@@ -273,11 +306,13 @@ export default function BattlePage() {
           {/* Battle Log */}
           <div className="mt-8 h-32 overflow-y-auto bg-gray-100 p-4 rounded">
             {battleState.battleLog.map((log, index) => (
-              <p key={index} className="mb-1">{log}</p>
+              <p key={index} className="mb-1">
+                {log}
+              </p>
             ))}
           </div>
         </div>
       </div>
     </div>
   );
-} 
+}
