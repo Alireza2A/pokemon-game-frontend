@@ -15,13 +15,17 @@ const typeColors = {
     border: "border-yellow-400",
     text: "text-gray-800",
   },
-  grass: { bg: "bg-green-400", border: "border-green-500", text: "text-white" },
+  grass: {
+    bg: "bg-green-400",
+    border: "border-green-500",
+    text: "text-gray-800",
+  },
   ice: { bg: "bg-blue-200", border: "border-blue-300", text: "text-gray-800" },
   fighting: { bg: "bg-red-600", border: "border-red-700", text: "text-white" },
   poison: {
     bg: "bg-purple-400",
     border: "border-purple-500",
-    text: "text-white",
+    text: "text-gray-800",
   },
   ground: {
     bg: "bg-yellow-600",
@@ -113,7 +117,9 @@ const PokemonCard = ({ pokemon, showActions = true }) => {
 
       {/* Pokemon Details */}
       <div className="p-4">
-        <h2 className="text-lg font-bold mb-1">{capitalizedName}</h2>
+        <h2 className="text-lg text-gray-800 font-bold mb-1">
+          {capitalizedName}
+        </h2>
 
         {/* Types */}
         <div className="flex gap-2 mb-3">
