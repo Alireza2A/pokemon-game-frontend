@@ -4,6 +4,7 @@ import { RosterProvider } from "./context/RosterContext";
 import MyRoster from "./pages/MyRoster";
 import BattlePage from "./pages/BattlePage";
 import Navbar from "./components/Navbar";
+import Homepage from "./pages/Homepage";
 
 const App = () => {
   return (
@@ -13,7 +14,7 @@ const App = () => {
           <Navbar />
           <main className="container mx-auto px-4 py-6">
             <Routes>
-              <Route path="/" element={<MyRoster />} />
+              <Route path="/" element={<Homepage />} />
               <Route path="/roster" element={<MyRoster />} />
               <Route path="/battle" element={<BattlePage />} />
             </Routes>
