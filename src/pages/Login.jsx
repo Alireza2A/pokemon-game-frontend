@@ -1,20 +1,32 @@
-import { useContext } from "react";
-import { useForm } from "react-hook-form";
-import { AuthContext } from "../context/AuthContext.jsx";
-import { Navigate } from "react-router";
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+// import { useContext } from "react";
+// import { useForm } from "react-hook-form";
+// import { AuthContext } from "../context/AuthContext.jsx";
+// import { Navigate } from "react-router";
 
-export default function Login() {
-    const { user, loading, login } = useContext(AuthContext);
+const Login = () => {
+    const navigate = useNavigate();
+    // const { user, loading, login } = useContext(AuthContext);
 
-    const {
-        register,
-        handleSubmit,
-        formState: { errors },
-    } = useForm();
+    // const {
+    //     register,
+    //     handleSubmit,
+    //     formState: { errors },
+    // } = useForm();
+
+    // Since we don't have auth yet, just redirect to home
+    React.useEffect(() => {
+        navigate('/');
+    }, [navigate]);
 
     return (
-        <>
-            {!loading && (
+        <div className="min-h-screen flex items-center justify-center bg-gray-100">
+            <div className="text-center">
+                <h1 className="text-2xl font-bold mb-4">Welcome to Pokemon Battle Game</h1>
+                <p>Redirecting to home page...</p>
+            </div>
+            {/* {!loading && (
                 <>
                     {user ? (
                         <Navigate to="/" />
@@ -55,7 +67,9 @@ export default function Login() {
                         </form>
                     )}
                 </>
-            )}
-        </>
+            )} */}
+        </div>
     );
-}
+};
+
+export default Login;
