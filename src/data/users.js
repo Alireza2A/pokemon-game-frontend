@@ -2,14 +2,14 @@ import { BASE_URL } from "./EventsApiURL";
 import axios from "axios";
 const getUserFromApi = async (formData) => {
     if (!formData) return;
-    const dataForTestingApp = {
-        token: "A testing token",
-        user: {
-            id: 1,
-            email: formData.email,
-        },
-    };
-    return dataForTestingApp;
+    // const dataForTestingApp = {
+    //     token: "A testing token",
+    //     user: {
+    //         id: 1,
+    //         email: formData.email,
+    //     },
+    // };
+    // return dataForTestingApp;
     const res = await axios.post(`${BASE_URL}/auth/login`, formData, {
         headers: {
             "Content-Type": "application/json",
