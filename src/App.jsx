@@ -12,29 +12,28 @@ import StarterSelection from "./pages/StarterSelection";
 import Leaderboard from "./pages/Leaderboard";
 
 const App = () => {
-  return (
-    <RosterProvider>
-      <Router>
-        <div className="min-h-screen bg-gray-50">
-          <main className="container mx-auto px-4 py-6">
-            <Routes>
-              <Route path="/" element={<Layout />}>
-                {/* <Route path="login" element={<Login />} /> */}
-                <Route path="/starter-selection" element={<StarterSelection />} />
-                {/* <Route path="/" element={<Protected />}> */}
-                  <Route path="/" element={<Homepage />} />
-                  <Route path="/roster" element={<MyRoster />} />
-                  <Route path="/battle" element={<BattlePage />} />
-                  <Route path="/pokemon/:id" element={<PokemonDetails />} />
-                  <Route path="/leaderboard" element={<Leaderboard />} />
-                {/* </Route> */}
-              </Route>
-            </Routes>
-          </main>
-        </div>
-      </Router>
-    </RosterProvider>
-  );
+    return (
+        <RosterProvider>
+            <Router>
+                <div className="min-h-screen bg-gray-50">
+                    <main className="container mx-auto px-4 py-6">
+                        <Routes>
+                            <Route path="/" element={<Layout />}>
+                                <Route path="login" element={<Login />} />
+                                <Route element={<Protected />}>
+                                    <Route path="starter-selection" element={<StarterSelection />} />
+                                    <Route index element={<Homepage />} />
+                                    <Route path="roster" element={<MyRoster />} />
+                                    <Route path="battle" element={<BattlePage />} />
+                                    <Route path="pokemon/:id" element={<PokemonDetails />} />
+                                </Route>
+                            </Route>
+                        </Routes>
+                    </main>
+                </div>
+            </Router>
+        </RosterProvider>
+    );
 };
 
 export default App;
