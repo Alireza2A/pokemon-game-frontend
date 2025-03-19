@@ -8,7 +8,7 @@ import Login from "./pages/Login";
 import Layout from "./components/Layout";
 import Protected from "./components/Protected";
 import PokemonDetails from "./pages/PokemonDetails";
-
+import StarterSelection from "./pages/StarterSelection";
 const App = () => {
   return (
     <RosterProvider>
@@ -18,6 +18,10 @@ const App = () => {
             <Routes>
               <Route path="/" element={<Layout />}>
                 <Route path="login" element={<Login />} />
+                <Route
+                  path="/starter-selection"
+                  element={<StarterSelection />}
+                />
                 <Route path="/" element={<Protected />}>
                   <Route path="/" element={<Homepage />} />
                   <Route path="/roster" element={<MyRoster />} />
