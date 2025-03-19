@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useRoster } from "../context/RosterContext";
-import { BASE_URL } from "../data/EventsApiURL";
-import axios from "axios";
+import { addPokemonToRoster } from "../data/userPokemons";
 
 const StarterSelection = () => {
     const navigate = useNavigate();
-    const { catchPokemon, refreshCaughtPokemon } = useRoster();
+    const { addPokemon } = useRoster();
 
     const [starters, setStarters] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -54,11 +53,10 @@ const StarterSelection = () => {
         // Simulate catching animation
         setTimeout(async () => {
             try {
-                addPokemonToRoster(pokemon);
+                await addPokemonToRoster(pokemon);
 
                 // Add to caught Pokémon in context
-                catchPokemon(pokemon);
-                await refreshCaughtPokemon();
+                addPokemon(pokemon);
 
                 // Show success message
                 setAnimatingSelect(false);

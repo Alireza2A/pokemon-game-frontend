@@ -18,13 +18,12 @@ const App = () => {
                         <Routes>
                             <Route path="/" element={<Layout />}>
                                 <Route path="login" element={<Login />} />
-                                <Route path="/starter-selection" element={<StarterSelection />} />
-                                <Route path="/" element={<Protected />}>
-                                    <Route path="/starter-selection" element={<StarterSelection />} />
-                                    <Route path="/" element={<Homepage />} />
-                                    <Route path="/roster" element={<MyRoster />} />
-                                    <Route path="/battle" element={<BattlePage />} />
-                                    <Route path="/pokemon/:id" element={<PokemonDetails />} />
+                                <Route element={<Protected />}>
+                                    <Route path="starter-selection" element={<StarterSelection />} />
+                                    <Route index element={<Homepage />} />
+                                    <Route path="roster" element={<MyRoster />} />
+                                    <Route path="battle" element={<BattlePage />} />
+                                    <Route path="pokemon/:id" element={<PokemonDetails />} />
                                 </Route>
                             </Route>
                         </Routes>
