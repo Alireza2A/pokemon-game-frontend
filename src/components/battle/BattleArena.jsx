@@ -1,6 +1,6 @@
-import { useState } from "react";
+import React, { useState, useEffect } from 'react';
+import { getWildPokemon, getMoveDetails } from '../../services/battleService';
 import PokemonStats from "./PokemonStats";
-import BattleControls from "./BattleControls";
 
 // Type effectiveness chart
 const TYPE_EFFECTIVENESS = {
@@ -34,190 +34,430 @@ const STATUS_EFFECTS = {
   confused: { name: "Confused", selfDamageChance: 0.33 }
 };
 
-function BattleArena({ playerPokemon, wildPokemon, onBattleEnd }) {
-  const [isPlayerTurn, setIsPlayerTurn] = useState(true);
+const DEFAULT_MOVES = [
+  { name: 'Tackle', power: 40, type: 'normal' },
+  { name: 'Scratch', power: 40, type: 'normal' }
+];
+
+const DEFAULT_STATS = {
+  hp: 100,
+  attack: 50,
+  defense: 50,
+  speed: 50,
+  level: 5  // Add default level
+};
+
+function getMoveTypeColor(type) {
+  const typeColors = {
+    normal: 'gray',
+    fire: 'red',
+    water: 'blue',
+    electric: 'yellow',
+    grass: 'green',
+    ice: 'cyan',
+    fighting: 'red',
+    poison: 'purple',
+    ground: 'yellow',
+    flying: 'blue',
+    psychic: 'pink',
+    bug: 'green',
+    rock: 'yellow',
+    ghost: 'purple',
+    dragon: 'purple',
+    dark: 'gray',
+    steel: 'gray',
+    fairy: 'pink'
+  };
+  
+  return typeColors[type?.toLowerCase()] || 'blue';
+}
+
+const BattleArena = ({ userPokemon, onBattleEnd }) => {
+  console.log('Initial userPokemon data:', userPokemon); // Log initial prop data
+
   const [battleLog, setBattleLog] = useState([]);
-  const [battleStatus, setBattleStatus] = useState("active");
-  const [statusEffects, setStatusEffects] = useState({
-    player: [],
-    wild: []
-  });
-  const [movesUsed, setMovesUsed] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [battleStartTime] = useState(Date.now());
+  const [battleState, setBattleState] = useState('active');
+  const [currentTurn, setCurrentTurn] = useState('user');
 
-  function calculateDamage(attacker, defender, move) {
-    // Base damage calculation
-    let damage = (attacker.level * 2 + 10) / 250 * (move.power * attacker.attack) / defender.defense + 2;
+  // Initialize user Pokemon state with default values if needed
+  const [userPokemonState, setUserPokemonState] = useState(() => {
+    const baseStats = {
+      hp: userPokemon?.stats?.[0]?.base_stat || DEFAULT_STATS.hp,
+      attack: userPokemon?.stats?.[1]?.base_stat || DEFAULT_STATS.attack,
+      defense: userPokemon?.stats?.[2]?.base_stat || DEFAULT_STATS.defense,
+      speed: userPokemon?.stats?.[5]?.base_stat || DEFAULT_STATS.speed
+    };
 
-    // Apply type effectiveness
-    const effectiveness = TYPE_EFFECTIVENESS[move.type]?.[defender.type] || 1;
-    damage *= effectiveness;
+    // Initialize with basic move data first
+    const initialState = {
+      id: userPokemon?.id,
+      name: userPokemon?.name?.charAt(0).toUpperCase() + userPokemon?.name?.slice(1) || 'Your Pokemon',
+      baseStats,
+      currentHp: baseStats.hp,
+      level: userPokemon?.level || DEFAULT_STATS.level,
+      moves: DEFAULT_MOVES,
+      types: userPokemon?.types?.map(type => type.type.name) || ['normal']
+    };
 
-    // Apply status effects
-    const attackerStatus = statusEffects[isPlayerTurn ? "player" : "wild"];
-    attackerStatus.forEach(status => {
-      if (STATUS_EFFECTS[status].attack) {
-        damage *= STATUS_EFFECTS[status].attack;
+    return initialState;
+  });
+
+  // Fetch detailed move data for user Pokemon
+  useEffect(() => {
+    async function fetchMoveDetails() {
+      if (userPokemon?.moves) {
+        console.log('User Pokemon moves:', userPokemon.moves);
+        
+        let movesData = DEFAULT_MOVES;
+        
+        if (Array.isArray(userPokemon.moves)) {
+          const selectedMoves = userPokemon.moves.slice(0, 4);
+          
+          // Fetch detailed move data for each move
+          const movesWithDetails = await Promise.all(
+            selectedMoves.map(async (moveData) => {
+              try {
+                // Check if moveData and moveData.move exist before accessing url
+                if (!moveData?.move?.url) {
+                  console.warn('Move URL not found:', moveData);
+                  return {
+                    name: moveData?.move?.name?.replace(/-/g, ' ') || 'Tackle',
+                    power: 40,
+                    type: 'normal'
+                  };
+                }
+
+                const moveDetails = await getMoveDetails(moveData.move.url);
+                return {
+                  name: moveDetails?.name?.replace(/-/g, ' ') || 'Tackle',
+                  power: moveDetails?.power || 40,
+                  type: moveDetails?.type?.name || 'normal'
+                };
+              } catch (error) {
+                console.error('Error fetching move details:', error);
+                return {
+                  name: moveData?.move?.name?.replace(/-/g, ' ') || 'Tackle',
+                  power: 40,
+                  type: 'normal'
+                };
+              }
+            })
+          );
+
+          movesData = movesWithDetails;
+        }
+
+        setUserPokemonState(prev => ({
+          ...prev,
+          moves: movesData
+        }));
       }
-    });
-
-    // Apply STAB (Same Type Attack Bonus)
-    if (move.type === attacker.type) {
-      damage *= 1.5;
     }
 
-    // Random factor (85-100%)
-    damage *= (Math.random() * 0.15 + 0.85);
+    fetchMoveDetails();
+  }, [userPokemon]);
 
-    return Math.floor(damage);
-  }
+  const [wildPokemonState, setWildPokemonState] = useState(null);
 
-  function applyStatusEffect(target, effect) {
-    const targetKey = target === playerPokemon ? "player" : "wild";
-    setStatusEffects(prev => ({
-      ...prev,
-      [targetKey]: [...prev[targetKey], effect]
-    }));
-  }
+  useEffect(() => {
+    const fetchWildPokemon = async () => {
+      try {
+        const pokemon = await getWildPokemon(1);
+        console.log('Fetched wild Pokemon data:', pokemon);
+        
+        if (!pokemon) {
+          throw new Error('Failed to fetch wild Pokemon data');
+        }
 
-  function processStatusEffects(pokemon, isPlayer) {
-    const effects = statusEffects[isPlayer ? "player" : "wild"];
-    let damage = 0;
-    let canMove = true;
+        const baseStats = {
+          hp: pokemon?.stats?.[0]?.base_stat || DEFAULT_STATS.hp,
+          attack: pokemon?.stats?.[1]?.base_stat || DEFAULT_STATS.attack,
+          defense: pokemon?.stats?.[2]?.base_stat || DEFAULT_STATS.defense,
+          speed: pokemon?.stats?.[5]?.base_stat || DEFAULT_STATS.speed
+        };
 
-    effects.forEach(effect => {
-      const status = STATUS_EFFECTS[effect];
-      if (status.damagePerTurn) {
-        damage += Math.floor(pokemon.maxHp * status.damagePerTurn);
+        // Fetch detailed move data for wild Pokemon
+        let movesData = DEFAULT_MOVES;
+        
+        if (Array.isArray(pokemon?.moves)) {
+          const selectedMoves = pokemon.moves.slice(0, 4);
+          
+          const movesWithDetails = await Promise.all(
+            selectedMoves.map(async (moveData) => {
+              try {
+                // Check if moveData and moveData.move exist before accessing url
+                if (!moveData?.move?.url) {
+                  console.warn('Move URL not found:', moveData);
+                  return {
+                    name: moveData?.move?.name?.replace(/-/g, ' ') || 'Tackle',
+                    power: 40,
+                    type: 'normal'
+                  };
+                }
+
+                const moveDetails = await getMoveDetails(moveData.move.url);
+                return {
+                  name: moveDetails?.name?.replace(/-/g, ' ') || 'Tackle',
+                  power: moveDetails?.power || 40,
+                  type: moveDetails?.type?.name || 'normal'
+                };
+              } catch (error) {
+                console.error('Error fetching move details:', error);
+                return {
+                  name: moveData?.move?.name?.replace(/-/g, ' ') || 'Tackle',
+                  power: 40,
+                  type: 'normal'
+                };
+              }
+            })
+          );
+
+          movesData = movesWithDetails;
+        }
+
+        const wildPokemonData = {
+          id: pokemon?.id,
+          name: pokemon?.name?.charAt(0).toUpperCase() + (pokemon?.name?.slice(1) || '') || 'Wild Pokemon',
+          baseStats,
+          currentHp: baseStats.hp,
+          level: pokemon?.level || Math.max(1, userPokemonState.level - 2),
+          moves: movesData,
+          types: pokemon?.types?.map(type => type?.type?.name).filter(Boolean) || ['normal']
+        };
+
+        console.log('Initialized wildPokemonState:', wildPokemonData);
+        setWildPokemonState(wildPokemonData);
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Error fetching wild Pokemon:', err);
+        setError('Failed to fetch wild Pokemon');
+        setIsLoading(false);
       }
-      if (status.canMove !== undefined) {
-        canMove = canMove && Math.random() > status.canMove;
-      }
-    });
+    };
 
-    return { damage, canMove };
-  }
+    fetchWildPokemon();
+  }, [userPokemonState.level]);
 
-  function recordMove(move, attacker, defender) {
-    setMovesUsed(prev => [...prev, {
-      moveName: move.name,
-      moveType: move.type,
-      attacker: attacker.name,
-      defender: defender.name,
-      timestamp: Date.now()
-    }]);
-  }
-
-  async function handleMoveSelect(move) {
-    if (!isPlayerTurn || battleStatus !== "active") return;
-
-    // Process player's turn
-    const playerStatus = processStatusEffects(playerPokemon, true);
-    if (!playerStatus.canMove) {
-      addToBattleLog(`${playerPokemon.name} is unable to move!`);
-      setIsPlayerTurn(false);
-      handleWildTurn();
-      return;
-    }
-
-    const damage = calculateDamage(playerPokemon, wildPokemon, move);
-    wildPokemon.currentHp -= damage;
-    addToBattleLog(`${playerPokemon.name} used ${move.name} for ${damage} damage!`);
-    recordMove(move, playerPokemon, wildPokemon);
-
-    // Apply status effects if move has them
-    if (move.statusEffect) {
-      applyStatusEffect(wildPokemon, move.statusEffect);
-      addToBattleLog(`${wildPokemon.name} was ${STATUS_EFFECTS[move.statusEffect].name}!`);
-    }
-
-    // Check for victory
-    if (wildPokemon.currentHp <= 0) {
-      wildPokemon.currentHp = 0;
-      addToBattleLog(`${wildPokemon.name} fainted!`);
-      setBattleStatus("won");
-      onBattleEnd("won", {
-        movesUsed,
-        battleDuration: Date.now() - battleStartTime,
-        statusEffects
+  // Add this damage calculation function near the other utility functions
+  const calculateMoveDamage = (attacker, defender, move) => {
+    // Base formula similar to Pokemon games:
+    // Damage = (((2 * level * effectiveAttack * movePower) / (50 * effectiveDefense)) + 2)
+    
+    const level = attacker.level || 5;
+    const attackStat = attacker.baseStats.attack;
+    const defenseStat = defender.baseStats.defense;
+    const movePower = move.power || 40;
+    
+    // Calculate type effectiveness
+    let typeMultiplier = 1;
+    if (move.type && defender.types && TYPE_EFFECTIVENESS[move.type]) {
+      defender.types.forEach(defenderType => {
+        if (TYPE_EFFECTIVENESS[move.type][defenderType]) {
+          typeMultiplier *= TYPE_EFFECTIVENESS[move.type][defenderType];
+        }
       });
-      return;
     }
 
-    setIsPlayerTurn(false);
-    handleWildTurn();
-  }
+    // Main damage formula
+    const baseDamage = Math.floor(
+      (((2 * level * attackStat * movePower) / (50 * defenseStat)) + 2) * typeMultiplier
+    );
 
-  function handleWildTurn() {
-    if (battleStatus !== "active") return;
+    return baseDamage;
+  };
 
-    // Process wild Pokemon's status effects
-    const wildStatus = processStatusEffects(wildPokemon, false);
-    if (!wildStatus.canMove) {
-      addToBattleLog(`${wildPokemon.name} is unable to move!`);
-      setIsPlayerTurn(true);
-      return;
+  const handleAttack = (move) => {
+    if (battleState === 'finished' || !wildPokemonState) return;
+    
+    console.log('Attack initiated with move:', move);
+    console.log('Current userPokemonState:', userPokemonState);
+    console.log('Current wildPokemonState:', wildPokemonState);
+
+    if (currentTurn === 'user') {
+      // Calculate damage using the new formula
+      const damage = calculateMoveDamage(userPokemonState, wildPokemonState, move);
+      
+      // User's turn
+      const newHp = Math.max(0, wildPokemonState.currentHp - damage);
+      setWildPokemonState(prev => ({ ...prev, currentHp: newHp }));
+      const battleMessage = `${userPokemonState.name} used ${move?.name || 'Tackle'}! Dealt ${damage} damage.`;
+      console.log('Battle log message:', battleMessage);
+      setBattleLog(prev => [...prev, battleMessage]);
+
+      if (newHp === 0) {
+        setBattleState('finished');
+        onBattleEnd({ 
+          winner: 'user', 
+          loser: 'opponent',
+          battleDuration: Date.now() - battleStartTime,
+          movesUsed: battleLog.map(log => ({
+            pokemon: userPokemonState.name,
+            move: move.name,
+            damage: damage
+          })),
+          statusEffects: [] // Add any status effects if implemented
+        });
+      } else {
+        setCurrentTurn('opponent');
+      }
     }
+  };
 
-    // Wild Pokemon's turn logic
-    const move = wildPokemon.moves[Math.floor(Math.random() * wildPokemon.moves.length)];
-    const damage = calculateDamage(wildPokemon, playerPokemon, move);
-    playerPokemon.currentHp -= damage;
-    addToBattleLog(`${wildPokemon.name} used ${move.name} for ${damage} damage!`);
-    recordMove(move, wildPokemon, playerPokemon);
+  // Update opponent's turn to use the same damage calculation
+  useEffect(() => {
+    if (currentTurn === 'opponent' && battleState === 'active' && wildPokemonState) {
+      const timer = setTimeout(() => {
+        const moves = wildPokemonState.moves || [{ name: 'Tackle', power: 40 }];
+        const randomMove = moves[Math.floor(Math.random() * moves.length)];
+        
+        const damage = calculateMoveDamage(wildPokemonState, userPokemonState, randomMove);
+        const newHp = Math.max(0, userPokemonState.currentHp - damage);
 
-    // Apply status effects if move has them
-    if (move.statusEffect) {
-      applyStatusEffect(playerPokemon, move.statusEffect);
-      addToBattleLog(`${playerPokemon.name} was ${STATUS_EFFECTS[move.statusEffect].name}!`);
+        setUserPokemonState(prev => ({ ...prev, currentHp: newHp }));
+        setBattleLog(prev => [...prev, `${wildPokemonState.name || 'Wild Pokemon'} used ${randomMove.name}! Dealt ${damage} damage.`]);
+
+        if (newHp === 0) {
+          setBattleState('finished');
+          onBattleEnd({ 
+            winner: 'opponent', 
+            loser: 'user',
+            battleDuration: Date.now() - battleStartTime,
+            movesUsed: battleLog.map(log => ({
+              pokemon: wildPokemonState.name,
+              move: randomMove.name,
+              damage: damage
+            })),
+            statusEffects: [] // Add any status effects if implemented
+          });
+        } else {
+          setCurrentTurn('user');
+        }
+      }, 1000);
+
+      return () => clearTimeout(timer);
     }
+  }, [currentTurn, battleState, wildPokemonState, userPokemonState.currentHp, onBattleEnd, battleStartTime, battleLog]);
 
-    // Check for defeat
-    if (playerPokemon.currentHp <= 0) {
-      playerPokemon.currentHp = 0;
-      addToBattleLog(`${playerPokemon.name} fainted!`);
-      setBattleStatus("lost");
-      onBattleEnd("lost", {
-        movesUsed,
-        battleDuration: Date.now() - battleStartTime,
-        statusEffects
-      });
-      return;
-    }
+  // Update the move button display to show the calculated damage
+  const getMoveDamagePreview = (move) => {
+    if (!wildPokemonState) return '??';
+    return calculateMoveDamage(userPokemonState, wildPokemonState, move);
+  };
 
-    setIsPlayerTurn(true);
-  }
+  if (isLoading) return <div className="text-center p-4">Loading battle...</div>;
+  if (error) return <div className="text-center p-4 text-red-500">Error: {error}</div>;
+  if (!wildPokemonState) return <div className="text-center p-4">Preparing battle...</div>;
 
-  function addToBattleLog(message) {
-    setBattleLog(prev => [...prev, { message, timestamp: new Date() }]);
-  }
+  // Get Pokemon image URLs with fallbacks
+  const userPokemonImage = userPokemon?.id ? 
+    `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/${userPokemon.id}.png` :
+    'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/1.png';
+  
+  const wildPokemonImage = wildPokemonState?.id ?
+    `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${wildPokemonState.id}.png` :
+    'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/1.png';
 
   return (
-    <div className="flex flex-col gap-4 p-4">
-      <div className="grid grid-cols-2 gap-4">
-        <PokemonStats pokemon={playerPokemon} isPlayer={true} statusEffects={statusEffects.player} />
-        <PokemonStats pokemon={wildPokemon} isPlayer={false} statusEffects={statusEffects.wild} />
-      </div>
-
-      <div className="flex justify-center">
-        <BattleControls
-          moves={playerPokemon.moves}
-          onMoveSelect={handleMoveSelect}
-          isPlayerTurn={isPlayerTurn}
-          battleStatus={battleStatus}
-        />
-      </div>
-
-      <div className="mt-4 p-4 bg-gray-800 rounded-lg max-h-48 overflow-y-auto">
-        <h3 className="text-lg font-semibold mb-2">Battle Log</h3>
-        {battleLog.map((log, index) => (
-          <div key={index} className="text-sm text-gray-300">
-            {log.message}
+    <div className="container mx-auto p-4">
+      <div className="grid grid-cols-2 gap-8">
+        {/* User Pokemon Side */}
+        <div className="text-center">
+          <div className="mb-4">
+            <img 
+              src={userPokemonImage} 
+              alt={userPokemonState.name || 'Your Pokemon'} 
+              className="w-48 h-48 mx-auto pixelated"
+            />
           </div>
-        ))}
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h3 className="text-xl font-bold mb-2">
+              {userPokemonState.name}
+              <span className="ml-2 text-sm font-normal text-gray-600">Lv. {userPokemonState.level}</span>
+            </h3>
+            <div className="mb-2">
+              HP: {userPokemonState.currentHp}/{userPokemonState.baseStats.hp}
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div 
+                  className="bg-green-600 h-2.5 rounded-full transition-all duration-500"
+                  style={{ width: `${(userPokemonState.currentHp / userPokemonState.baseStats.hp) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Move Buttons Section */}
+          {currentTurn === 'user' && battleState === 'active' && (
+            <div className="mt-4">
+              <div className="grid grid-cols-2 gap-3">
+                {userPokemonState.moves.map((move, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleAttack(move)}
+                    className="relative px-4 py-3 bg-blue-600 text-white rounded-lg 
+                             transform hover:-translate-y-0.5 
+                             transition-all duration-200 shadow-md hover:shadow-lg hover:bg-blue-700
+                             disabled:opacity-50 disabled:cursor-not-allowed
+                             font-medium text-center"
+                    disabled={currentTurn !== 'user' || battleState !== 'active'}
+                  >
+                    <div className="font-bold text-lg mb-1 capitalize">{move.name}</div>
+                    <div className="text-xs text-white/90">
+                      Power: {getMoveDamagePreview(move)}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Wild Pokemon Side */}
+        <div className="text-center">
+          <div className="mb-4">
+            <img 
+              src={wildPokemonImage} 
+              alt={wildPokemonState.name || 'Wild Pokemon'} 
+              className="w-48 h-48 mx-auto pixelated"
+            />
+          </div>
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h3 className="text-xl font-bold mb-2">
+              {wildPokemonState.name}
+              <span className="ml-2 text-sm font-normal text-gray-600">Lv. {wildPokemonState.level}</span>
+            </h3>
+            <div className="mb-2">
+              HP: {wildPokemonState.currentHp}/{wildPokemonState.baseStats.hp}
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div 
+                  className="bg-green-600 h-2.5 rounded-full transition-all duration-500"
+                  style={{ width: `${(wildPokemonState.currentHp / wildPokemonState.baseStats.hp) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Battle Log */}
+          <div className="mt-4 p-4 bg-gray-100 rounded-lg max-h-48 overflow-y-auto text-left">
+            <h4 className="font-semibold mb-2">Battle Log:</h4>
+            {battleLog.map((log, index) => (
+              <p key={index} className="mb-1 text-sm">{log}</p>
+            ))}
+          </div>
+        </div>
       </div>
+
+      {battleState === 'finished' && (
+        <div className="mt-4 text-center">
+          <h2 className="text-2xl font-bold">
+            {userPokemonState.currentHp === 0 ? 'You Lost!' : 'You Won!'}
+          </h2>
+        </div>
+      )}
     </div>
   );
-}
+};
 
 export default BattleArena; 

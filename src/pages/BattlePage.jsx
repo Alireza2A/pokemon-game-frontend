@@ -1,19 +1,19 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from "react-router-dom";
 import { useRoster } from "../context/RosterContext";
 import BattleArena from "../components/battle/BattleArena";
 import PokemonStats from "../components/battle/PokemonStats";
 import BattleControls from "../components/battle/BattleControls";
-import { getWildPokemon, updatePokemonStats, recordBattle } from "../services/battleService";
+import { getWildPokemon, recordBattle } from "../services/battleService";
 
-function BattlePage() {
+const BattlePage = () => {
   const navigate = useNavigate();
   const { roster, updateRoster } = useRoster();
   const [wildPokemon, setWildPokemon] = useState(null);
   const [selectedPokemon, setSelectedPokemon] = useState(null);
   const [battleState, setBattleState] = useState("select"); // select, battle, result
   const [battleResult, setBattleResult] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -21,11 +21,13 @@ function BattlePage() {
       try {
         setIsLoading(true);
         setError(null);
-        const pokemon = await getWildPokemon();
+        // Get a random level between 1 and 10 for the wild Pokemon
+        const randomLevel = Math.floor(Math.random() * 10) + 1;
+        const pokemon = await getWildPokemon(randomLevel);
         setWildPokemon(pokemon);
-      } catch (error) {
-        setError("Failed to fetch wild Pokemon. Please try again.");
-        console.error("Error fetching wild Pokemon:", error);
+      } catch (err) {
+        console.error('Error fetching wild Pokemon:', err);
+        setError('Failed to fetch wild Pokemon. Please try again.');
       } finally {
         setIsLoading(false);
       }
@@ -39,115 +41,119 @@ function BattlePage() {
     setBattleState("battle");
   };
 
-  const handleBattleEnd = async (result, battleData) => {
+  const handleBattleEnd = async (battleData) => {
     try {
-      setIsLoading(true);
-      setError(null);
+      if (!selectedPokemon || !wildPokemon) {
+        throw new Error('Missing Pokemon data');
+      }
 
-      const isVictory = result === "won";
-      const experienceGained = isVictory ? 100 : 0;
-      const newLevel = isVictory ? selectedPokemon.level + 1 : Math.max(1, selectedPokemon.level - 1);
-      const newMaxHp = 100 + (newLevel - 1) * 5;
+      console.log('Selected Pokemon:', selectedPokemon); // Debug log
+      console.log('Wild Pokemon:', wildPokemon); // Debug log
 
-      // Update Pokemon stats
-      const updatedPokemon = await updatePokemonStats(selectedPokemon.id, {
-        currentHp: newMaxHp,
-        level: newLevel,
-        experience: selectedPokemon.experience + experienceGained
-      });
+      // Calculate score change (example: +10 for win, -5 for loss)
+      const scoreChange = battleData.winner === 'user' ? '+10' : '-5';
+      
+      // Get current user score from context or localStorage
+      const currentScore = parseInt(localStorage.getItem('userScore') || '0');
+      const newScore = battleData.winner === 'user' ? currentScore + 10 : currentScore - 5;
+      
+      // Format moves used data
+      const formattedMovesUsed = battleData.movesUsed.map(move => ({
+        pokemon: move.pokemon === selectedPokemon.name ? 'user' : 'opponent',
+        move: move.move,
+        damage: move.damage
+      }));
 
-      // Update roster with new Pokemon stats
-      updateRoster(updatedPokemon);
+      // For wild Pokemon, we'll use a special identifier
+      const opponentPokemonId = wildPokemon.isWild ? 
+        `wild_${wildPokemon.name}_${wildPokemon.level}` : 
+        wildPokemon.id;
 
-      // Record battle result with additional battle data
-      await recordBattle({
-        userId: selectedPokemon.userId,
-        playerPokemonId: selectedPokemon.id,
-        wildPokemonId: wildPokemon.id,
-        result: isVictory ? "won" : "lost",
-        experienceGained,
-        movesUsed: battleData.movesUsed,
-        battleDuration: battleData.battleDuration,
-        statusEffects: battleData.statusEffects
-      });
+      const battleRecordData = {
+        userId: 1, // This should come from your auth context
+        pokemonId: selectedPokemon.id,
+        opponentPokemonId: opponentPokemonId,
+        winner: battleData.winner,
+        loser: battleData.loser,
+        scoreChange,
+        newScore,
+        battleDuration: battleData.battleDuration || 0,
+        movesUsed: formattedMovesUsed,
+        statusEffects: battleData.statusEffects || []
+      };
 
-      setBattleResult({
-        winner: isVictory ? "player" : "wild",
-        message: isVictory 
-          ? "Victory! Your Pokemon leveled up!" 
-          : "Defeat! Your Pokemon lost a level!"
-      });
+      console.log('Battle record data:', battleRecordData); // Debug log
+
+      // Validate required fields
+      if (!battleRecordData.pokemonId || !battleRecordData.opponentPokemonId) {
+        console.error('Missing Pokemon IDs:', {
+          selectedPokemonId: battleRecordData.pokemonId,
+          wildPokemonId: battleRecordData.opponentPokemonId
+        });
+        throw new Error('Missing Pokemon IDs');
+      }
+
+      const result = await recordBattle(battleRecordData);
+      
+      // Update user's score in localStorage
+      localStorage.setItem('userScore', newScore.toString());
+      
       setBattleState("result");
+      setBattleResult(result);
     } catch (error) {
-      setError("Failed to process battle result. Please try again.");
-      console.error("Error processing battle result:", error);
-    } finally {
-      setIsLoading(false);
+      console.error('Error recording battle:', error);
+      setError('Failed to record battle result: ' + error.message);
     }
   };
 
   const handleReturnToRoster = () => {
-    navigate("/roster");
+    navigate("/leaderboard");
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <p className="text-red-500 text-xl mb-4">{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-        >
-          Try Again
-        </button>
-      </div>
-    );
-  }
+  if (isLoading) return <div>Loading battle...</div>;
+  if (error) return <div>Error: {error}</div>;
+  if (!wildPokemon) return <div>No wild Pokemon available</div>;
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold text-center mb-8">Battle Arena</h1>
-      
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Battle Arena</h1>
       {battleState === "select" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {roster.map((pokemon) => (
-            <div
-              key={pokemon.id}
-              className="bg-white rounded-lg shadow-lg p-6 cursor-pointer hover:shadow-xl transition-shadow"
-              onClick={() => handlePokemonSelect(pokemon)}
-            >
-              <h2 className="text-2xl font-semibold mb-4">{pokemon.name}</h2>
-              <PokemonStats pokemon={pokemon} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <h2 className="text-xl font-semibold mb-2">Your Pokemon</h2>
+            <div className="grid grid-cols-1 gap-2">
+              {roster.map((pokemon) => (
+                <button
+                  key={pokemon.id}
+                  onClick={() => handlePokemonSelect(pokemon)}
+                  className="p-4 border rounded-lg hover:bg-gray-100"
+                >
+                  <PokemonStats pokemon={pokemon} />
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold mb-2">Wild Pokemon</h2>
+            <PokemonStats pokemon={wildPokemon} />
+          </div>
         </div>
       )}
-
-      {battleState === "battle" && selectedPokemon && wildPokemon && (
+      {battleState === "battle" && selectedPokemon && (
         <BattleArena
-          playerPokemon={selectedPokemon}
+          userPokemon={selectedPokemon}
           wildPokemon={wildPokemon}
           onBattleEnd={handleBattleEnd}
         />
       )}
-
       {battleState === "result" && battleResult && (
         <div className="text-center">
-          <h2 className="text-3xl font-bold mb-4">
-            {battleResult.winner === "player" ? "Victory!" : "Defeat"}
+          <h2 className="text-2xl font-bold mb-4">
+            {battleResult.winner === "user" ? "Victory!" : "Defeat"}
           </h2>
-          <p className="text-xl mb-8">{battleResult.message}</p>
           <button
             onClick={handleReturnToRoster}
-            className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
             Return to Roster
           </button>
@@ -155,6 +161,6 @@ function BattlePage() {
       )}
     </div>
   );
-}
+};
 
 export default BattlePage;
