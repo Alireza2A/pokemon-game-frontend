@@ -1,10 +1,10 @@
-import { useState, useEffect, createContext } from "react";
+import React, { createContext, useContext, useState, useEffect} from 'react';
 import { useNavigate } from "react-router";
 import { getUserFromApi, profile } from "../data/users";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-export const AuthContext = createContext();
+export const AuthContext = createContext(null);
 
 const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
@@ -55,6 +55,14 @@ const AuthProvider = ({ children }) => {
       <ToastContainer />
     </AuthContext.Provider>
   );
+};
+
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
 };
 
 export default AuthProvider;
