@@ -1,13 +1,24 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router";
+import { Link } from "react-router-dom";
 import PokemonCard from "../components/PokemonCard";
+import { useCaughtPokemon } from "../context/CaughtPokemonContext";
 
 const Homepage = () => {
+  const caughtPokemonContext = useCaughtPokemon();
+
+  // Safely destructure the context only if it exists
+  const {
+    isPokemonCaught = () => false,
+    caughtPokemon = [],
+    isInitialized = false,
+  } = caughtPokemonContext || {};
+
   const [pokemon, setPokemon] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [caughtFilter, setCaughtFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [pokemonTypes, setPokemonTypes] = useState(["all"]);
 
@@ -73,7 +84,14 @@ const Homepage = () => {
     const matchesType =
       typeFilter === "all" || p.types.some((t) => t.type.name === typeFilter);
 
-    return matchesSearch && matchesType;
+    // Filter by caught status (only if context is initialized)
+    const matchesCaught =
+      !isInitialized || // Skip this filter if context isn't ready
+      caughtFilter === "all" ||
+      (caughtFilter === "caught" && isPokemonCaught(p.id)) ||
+      (caughtFilter === "uncaught" && !isPokemonCaught(p.id));
+
+    return matchesSearch && matchesType && matchesCaught;
   });
 
   // Pagination
@@ -100,6 +118,12 @@ const Homepage = () => {
   // Handle type filter
   const handleTypeFilter = (e) => {
     setTypeFilter(e.target.value);
+    setCurrentPage(1); // Reset to first page when filtering
+  };
+
+  // Handle caught filter
+  const handleCaughtFilter = (e) => {
+    setCaughtFilter(e.target.value);
     setCurrentPage(1); // Reset to first page when filtering
   };
 
@@ -158,6 +182,26 @@ const Homepage = () => {
         </div>
       </div>
 
+      {/* Caught Pokemon stats - Only shown if context is initialized */}
+      {isInitialized && (
+        <div className="bg-white p-4 rounded-lg shadow-md mb-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-bold text-gray-800">Your Collection</h2>
+            <div className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+              {caughtPokemon.length} / {pokemon.length} Pokémon Caught
+            </div>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+            <div
+              className="bg-yellow-400 h-2.5 rounded-full"
+              style={{
+                width: `${(caughtPokemon.length / pokemon.length) * 100}%`,
+              }}
+            ></div>
+          </div>
+        </div>
+      )}
+
       {/* Search and filters */}
       <div className="bg-white p-6 rounded-lg shadow-md mb-8">
         <div className="flex flex-col md:flex-row gap-4">
@@ -180,7 +224,7 @@ const Homepage = () => {
           </div>
 
           {/* Type filter */}
-          <div className="md:w-1/3">
+          <div className="md:w-1/4">
             <label
               htmlFor="type-filter"
               className="block text-sm font-medium text-gray-700 mb-1"
@@ -202,6 +246,28 @@ const Homepage = () => {
               ))}
             </select>
           </div>
+
+          {/* Caught filter - Only shown if context is initialized */}
+          {isInitialized && (
+            <div className="md:w-1/4">
+              <label
+                htmlFor="caught-filter"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Collection Status
+              </label>
+              <select
+                id="caught-filter"
+                className="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                value={caughtFilter}
+                onChange={handleCaughtFilter}
+              >
+                <option value="all">All Pokémon</option>
+                <option value="caught">Caught Only</option>
+                <option value="uncaught">Not Caught</option>
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Results count */}
@@ -209,6 +275,12 @@ const Homepage = () => {
           Showing {filteredPokemon.length} of {pokemon.length} Pokémon
           {searchTerm && <span> matching "{searchTerm}"</span>}
           {typeFilter !== "all" && <span> of type "{typeFilter}"</span>}
+          {isInitialized && caughtFilter !== "all" && (
+            <span>
+              {" "}
+              that are {caughtFilter === "caught" ? "caught" : "not caught"}
+            </span>
+          )}
         </div>
       </div>
 
@@ -225,6 +297,7 @@ const Homepage = () => {
             onClick={() => {
               setSearchTerm("");
               setTypeFilter("all");
+              setCaughtFilter("all");
             }}
             className="text-indigo-600 font-medium hover:text-indigo-800"
           >
@@ -235,7 +308,12 @@ const Homepage = () => {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {currentPokemon.map((p) => (
-              <PokemonCard key={p.id} pokemon={p} />
+              <PokemonCard
+                key={p.id}
+                pokemon={p}
+                // Only pass context props if initialized
+                contextReady={isInitialized}
+              />
             ))}
           </div>
 

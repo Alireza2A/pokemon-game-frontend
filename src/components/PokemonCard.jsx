@@ -1,5 +1,6 @@
-import { Link } from "react-router";
+import { Link } from "react-router-dom";
 import { useRoster } from "../context/RosterContext";
+import { useCaughtPokemon } from "../context/CaughtPokemonContext";
 
 // Type colors for card borders
 const typeColors = {
@@ -60,8 +61,18 @@ const typeColors = {
   default: { bg: "bg-gray-400", border: "border-gray-500", text: "text-white" },
 };
 
-const PokemonCard = ({ pokemon, showActions = true }) => {
-  const { removePokemon, isPokemonInRoster, addPokemon } = useRoster();
+const PokemonCard = ({ pokemon, showActions = true, contextReady = true }) => {
+  const rosterContext = useRoster();
+  const caughtPokemonContext = useCaughtPokemon();
+
+  // Safely destructure the contexts
+  const {
+    removePokemon = () => {},
+    isPokemonInRoster = () => false,
+    addPokemon = () => {},
+  } = rosterContext || {};
+
+  const { isPokemonCaught = () => false } = caughtPokemonContext || {};
 
   // Format Pokemon ID as #001, #025, etc.
   const formattedId = `#${String(pokemon.id).padStart(3, "0")}`;
@@ -79,21 +90,34 @@ const PokemonCard = ({ pokemon, showActions = true }) => {
   const primaryType = pokemon.types[0]?.type?.name || "default";
   const typeStyle = typeColors[primaryType] || typeColors.default;
 
-  // Check if this pokemon is in the roster
-  const inRoster = isPokemonInRoster(pokemon.id);
+  // Check if this pokemon is in the roster - only if context is ready
+  const inRoster = contextReady ? isPokemonInRoster(pokemon.id) : false;
+
+  // Check if this pokemon is caught - only if context is ready
+  const isCaught = contextReady ? isPokemonCaught(pokemon.id) : false;
 
   // Handle toggling pokemon in roster
   const handleToggleRoster = () => {
+    if (!contextReady) return;
+
     if (inRoster) {
       removePokemon(pokemon.id);
     } else {
-      addPokemon(pokemon);
+      // Only allow adding caught pokemon to roster
+      if (isCaught) {
+        addPokemon(pokemon);
+      } else {
+        // Could show a toast message here
+        alert("You can only add caught Pokémon to your roster!");
+      }
     }
   };
 
   return (
     <div
-      className={`group overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-all duration-300 border-2 ${typeStyle.border} bg-white`}
+      className={`group overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-all duration-300 border-2 ${
+        typeStyle.border
+      } bg-white ${contextReady && isCaught ? "ring-2 ring-yellow-400" : ""}`}
     >
       {/* Pokemon Image */}
       <div
@@ -102,11 +126,33 @@ const PokemonCard = ({ pokemon, showActions = true }) => {
         <span className="absolute top-2 left-2 text-sm text-gray-500 font-medium bg-white/80 px-2 py-0.5 rounded-full">
           {formattedId}
         </span>
+
+        {/* Caught badge - only if context is ready */}
+        {contextReady && isCaught && (
+          <div className="absolute top-2 right-2 bg-yellow-400 text-gray-800 px-2 py-0.5 rounded-full text-xs font-bold flex items-center">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-3 w-3 mr-1"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                clipRule="evenodd"
+              />
+            </svg>
+            CAUGHT
+          </div>
+        )}
+
         {imageUrl ? (
           <img
             src={imageUrl}
             alt={pokemon.name}
-            className="h-32 object-contain transition-transform group-hover:scale-110"
+            className={`h-32 object-contain transition-transform group-hover:scale-110 ${
+              contextReady && !isCaught ? "filter grayscale opacity-60" : ""
+            }`}
           />
         ) : (
           <div className="h-32 w-32 flex items-center justify-center bg-gray-200 rounded-full">
@@ -117,8 +163,18 @@ const PokemonCard = ({ pokemon, showActions = true }) => {
 
       {/* Pokemon Details */}
       <div className="p-4">
-        <h2 className="text-lg text-gray-800 font-bold mb-1">
+        <h2 className="text-lg text-gray-800 font-bold mb-1 flex items-center">
           {capitalizedName}
+          {contextReady && isCaught && (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4 ml-1 text-yellow-500"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+          )}
         </h2>
 
         {/* Types */}
@@ -182,16 +238,37 @@ const PokemonCard = ({ pokemon, showActions = true }) => {
             >
               Details
             </Link>
-            <button
-              onClick={handleToggleRoster}
-              className={`flex-1 py-1.5 px-3 text-sm font-medium rounded-md ${
-                inRoster
-                  ? "bg-red-500 hover:bg-red-600 text-white"
-                  : `${typeStyle.bg} ${typeStyle.text} hover:opacity-90`
-              }`}
-            >
-              {inRoster ? "Remove" : "Add to Roster"}
-            </button>
+
+            {/* Only show caught/roster buttons if context is ready */}
+            {contextReady ? (
+              isCaught ? (
+                <button
+                  onClick={handleToggleRoster}
+                  className={`flex-1 py-1.5 px-3 text-sm font-medium rounded-md ${
+                    inRoster
+                      ? "bg-red-500 hover:bg-red-600 text-white"
+                      : `${typeStyle.bg} ${typeStyle.text} hover:opacity-90`
+                  }`}
+                >
+                  {inRoster ? "Remove" : "Add to Roster"}
+                </button>
+              ) : (
+                <button
+                  className="flex-1 py-1.5 px-3 text-sm font-medium rounded-md bg-gray-300 text-gray-500 cursor-not-allowed"
+                  disabled
+                  title="You must catch this Pokémon first!"
+                >
+                  Not Caught
+                </button>
+              )
+            ) : (
+              <button
+                className="flex-1 py-1.5 px-3 text-sm font-medium rounded-md bg-gray-300 text-gray-500"
+                disabled
+              >
+                Loading...
+              </button>
+            )}
           </div>
         )}
       </div>

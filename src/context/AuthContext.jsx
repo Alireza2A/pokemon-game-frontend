@@ -1,68 +1,60 @@
-import React, { createContext, useContext, useState } from 'react';
-// import { useNavigate } from "react-router";
-// import { getUserFromApi, profile } from "../data/users";
-// import { toast, ToastContainer } from "react-toastify";
-// import "react-toastify/dist/ReactToastify.css";
+import React, { createContext, useContext, useState, useEffect} from 'react';
+import { useNavigate } from "react-router";
+import { getUserFromApi, profile } from "../data/users";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 export const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
-    // const navigate = useNavigate();
-    // const [user, setUser] = useState(null);
-    // const [loading, setLoading] = useState(true);
+const AuthProvider = ({ children }) => {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-    // useEffect(() => {
-    //     const getUser = async () => {
-    //         try {
-    //             const data = await profile();
-    //             setUser(data);
-    //         } catch (error) {
-    //             console.error(error);
-    //         } finally {
-    //             setLoading(false);
-    //         }
-    //     };
-    //     getUser();
-    // }, []);
+  const login = async (formData) => {
+    try {
+      const data = await getUserFromApi(formData);
+      localStorage.setItem("token", data.token);
+      setUser(data.user);
+      navigate("/");
+    } catch (error) {
+      const errorMessage =
+        error.response?.data?.message || "Something went wrong!";
+      toast.error(errorMessage, { position: "top-right", autoClose: 3000 });
+      console.error(error);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // Mock user for development
-    const [user] = useState({
-        id: 1,
-        name: 'Test User',
-        email: 'test@example.com'
-    });
+  const logout = () => {
+    localStorage.removeItem("token");
+    setUser(null);
+    navigate("/login");
+  };
 
-    const value = {
-        user,
-        // loading,
-        // setUser,
-        // login: async (credentials) => {
-        //     try {
-        //         const data = await getUserFromApi(credentials);
-        //         localStorage.setItem("token", data.token);
-        //         setUser(data.user);
-        //         navigate("/");
-        //     } catch (error) {
-        //         const errorMessage = error.response?.data?.message || "Something went wrong!";
-        //         toast.error(errorMessage, { position: "top-right", autoClose: 3000 });
-        //         console.error(error);
-        //     }
-        // },
-        // logout: () => {
-        //     localStorage.removeItem("token");
-        //     setUser(null);
-        //     navigate("/login");
-        // }
-        login: () => {},
-        logout: () => {}
+  useEffect(() => {
+    const getUser = async () => {
+      try {
+        const data = await profile();
+        setUser(data);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
     };
+    getUser();
+  }, []);
 
-    return (
-        <AuthContext.Provider value={value}>
-            {children}
-            {/* <ToastContainer /> */}
-        </AuthContext.Provider>
-    );
+  return (
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
+      {children}
+      {/* Ensure ToastContainer is included so toasts work globally */}
+      <ToastContainer />
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {
