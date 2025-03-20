@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // For Vite, use import.meta.env instead of process.env
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 export const getUserPokemons = async () => {
   try {
