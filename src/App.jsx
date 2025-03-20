@@ -11,6 +11,7 @@ import Layout from "./components/Layout";
 import Protected from "./components/Protected";
 import PokemonDetails from "./pages/PokemonDetails";
 import StarterSelection from "./pages/StarterSelection";
+import Leaderboard from "./pages/Leaderboard";
 
 const App = () => {
   return (
