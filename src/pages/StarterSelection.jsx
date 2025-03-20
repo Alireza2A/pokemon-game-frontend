@@ -1,18 +1,28 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { useRoster } from "../context/RosterContext";
+import { useCaughtPokemon } from "../context/CaughtPokemonContext";
 import { addPokemonPersistant } from "../data/userPokemons";
 
 const StarterSelection = () => {
   const navigate = useNavigate();
   const { addPokemon } = useRoster();
+  const { catchPokemon, recordStarterSelection, hasSelectedStarter } =
+    useCaughtPokemon();
 
   const [starters, setStarters] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPokemon, setSelectedPokemon] = useState(null);
   const [animatingSelect, setAnimatingSelect] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Check if user already has a starter
+  useEffect(() => {
+    if (hasSelectedStarter()) {
+      navigate("/");
+    }
+  }, [hasSelectedStarter, navigate]);
 
   // Starter Pokémon IDs
   const starterIds = [4, 1, 7]; // Charmander, Bulbasaur, Squirtle
@@ -20,7 +30,7 @@ const StarterSelection = () => {
   useEffect(() => {
     const fetchStarters = async () => {
       try {
-        setLoading(true);
+        setIsLoading(true);
 
         // Fetch all three starter Pokémon data in parallel
         const starterData = await Promise.all(
@@ -40,7 +50,7 @@ const StarterSelection = () => {
         console.error("Error fetching starter Pokémon:", err);
         setError(err.message || "Failed to load starter Pokémon");
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
@@ -58,7 +68,13 @@ const StarterSelection = () => {
         await addPokemonPersistant(pokemon);
 
         // Add to caught Pokémon in context
+        catchPokemon(pokemon);
+
+        // Add to roster in context
         addPokemon(pokemon);
+
+        // Record that user has selected their starter
+        recordStarterSelection();
 
         // Show success message
         setAnimatingSelect(false);

@@ -1,10 +1,11 @@
-import { useContext } from "react";
+import { useContext, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { AuthContext } from "../context/AuthContext.jsx";
-import { Navigate } from "react-router";
+import { Navigate, useNavigate } from "react-router-dom";
 
 export default function Login() {
   const { user, loading, login } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   const {
     register,
@@ -12,12 +13,29 @@ export default function Login() {
     formState: { errors },
   } = useForm();
 
+  // Check if user has already selected a starter pokemon
+  useEffect(() => {
+    if (user && !loading) {
+      // Check if the user has any pokemon in their roster
+      const hasStarter = localStorage.getItem("hasSelectedStarter");
+
+      if (hasStarter === "true") {
+        navigate("/"); // Go to homepage if they already have a starter
+      } else {
+        navigate("/starter-selection"); // Go to starter selection if they don't
+      }
+    }
+  }, [user, loading, navigate]);
+
   return (
     <>
       {!loading && (
         <>
           {user ? (
-            <Navigate to="/" />
+            // This will be handled by the useEffect above
+            <div className="flex justify-center items-center p-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
           ) : (
             <form
               onSubmit={handleSubmit(login)}
