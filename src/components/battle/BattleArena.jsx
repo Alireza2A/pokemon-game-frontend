@@ -72,11 +72,12 @@ function getMoveTypeColor(type) {
   return typeColors[type?.toLowerCase()] || 'blue';
 }
 
-const BattleArena = ({ userPokemon, onBattleEnd }) => {
+const BattleArena = ({ userPokemon, wildPokemon, onBattleEnd }) => {
   console.log('Initial userPokemon data:', userPokemon); // Log initial prop data
+  console.log('Initial wildPokemon data:', wildPokemon); // Log initial wild Pokemon data
 
   const [battleLog, setBattleLog] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Set to true while fetching move details
   const [error, setError] = useState(null);
   const [battleStartTime] = useState(Date.now());
   const [battleState, setBattleState] = useState('active');
@@ -84,7 +85,7 @@ const BattleArena = ({ userPokemon, onBattleEnd }) => {
 
   // Initialize user Pokemon state with default values if needed
   const [userPokemonState, setUserPokemonState] = useState(() => {
-    const baseStats = {
+    const baseStats = userPokemon.baseStats || {
       hp: userPokemon?.stats?.[0]?.base_stat || DEFAULT_STATS.hp,
       attack: userPokemon?.stats?.[1]?.base_stat || DEFAULT_STATS.attack,
       defense: userPokemon?.stats?.[2]?.base_stat || DEFAULT_STATS.defense,
@@ -97,149 +98,158 @@ const BattleArena = ({ userPokemon, onBattleEnd }) => {
       name: userPokemon?.name?.charAt(0).toUpperCase() + userPokemon?.name?.slice(1) || 'Your Pokemon',
       baseStats,
       currentHp: baseStats.hp,
+      maxHp: baseStats.hp,
+      attack: baseStats.attack,
+      defense: baseStats.defense,
+      speed: baseStats.speed,
       level: userPokemon?.level || DEFAULT_STATS.level,
       moves: DEFAULT_MOVES,
-      types: userPokemon?.types?.map(type => type.type.name) || ['normal']
+      types: userPokemon?.types?.map(type => type.type.name) || ['normal'],
+      statusEffects: []
     };
 
     return initialState;
   });
 
+  // Initialize wild Pokemon state with data passed from the parent component
+  const [wildPokemonState, setWildPokemonState] = useState(() => {
+    const baseStats = wildPokemon.baseStats || {
+      hp: wildPokemon?.stats?.[0]?.base_stat || DEFAULT_STATS.hp,
+      attack: wildPokemon?.stats?.[1]?.base_stat || DEFAULT_STATS.attack,
+      defense: wildPokemon?.stats?.[2]?.base_stat || DEFAULT_STATS.defense,
+      speed: wildPokemon?.stats?.[5]?.base_stat || DEFAULT_STATS.speed
+    };
+
+    return {
+      id: wildPokemon?.id,
+      name: wildPokemon?.name?.charAt(0).toUpperCase() + wildPokemon?.name?.slice(1) || 'Wild Pokemon',
+      baseStats,
+      currentHp: baseStats.hp,
+      maxHp: baseStats.hp,
+      attack: baseStats.attack,
+      defense: baseStats.defense,
+      speed: baseStats.speed,
+      level: wildPokemon?.level || DEFAULT_STATS.level,
+      moves: DEFAULT_MOVES, // Will be updated with actual moves
+      types: wildPokemon?.type || wildPokemon?.types?.map(type => type.type.name) || ['normal'],
+      statusEffects: []
+    };
+  });
+
   // Fetch detailed move data for user Pokemon
   useEffect(() => {
-    async function fetchMoveDetails() {
-      if (userPokemon?.moves) {
-        console.log('User Pokemon moves:', userPokemon.moves);
+    const fetchMoveDetails = async () => {
+      try {
+        console.log('Fetching move details for user Pokemon...');
+        const moves = userPokemon?.moves || [];
+        const selectedMoves = moves.slice(0, 4);
         
-        let movesData = DEFAULT_MOVES;
-        
-        if (Array.isArray(userPokemon.moves)) {
-          const selectedMoves = userPokemon.moves.slice(0, 4);
-          
-          // Fetch detailed move data for each move
-          const movesWithDetails = await Promise.all(
-            selectedMoves.map(async (moveData) => {
-              try {
-                // Check if moveData and moveData.move exist before accessing url
-                if (!moveData?.move?.url) {
-                  console.warn('Move URL not found:', moveData);
-                  return {
-                    name: moveData?.move?.name?.replace(/-/g, ' ') || 'Tackle',
-                    power: 40,
-                    type: 'normal'
-                  };
-                }
-
-                const moveDetails = await getMoveDetails(moveData.move.url);
-                return {
-                  name: moveDetails?.name?.replace(/-/g, ' ') || 'Tackle',
-                  power: moveDetails?.power || 40,
-                  type: moveDetails?.type?.name || 'normal'
-                };
-              } catch (error) {
-                console.error('Error fetching move details:', error);
-                return {
-                  name: moveData?.move?.name?.replace(/-/g, ' ') || 'Tackle',
-                  power: 40,
-                  type: 'normal'
-                };
-              }
-            })
-          );
-
-          movesData = movesWithDetails;
+        if (selectedMoves.length === 0) {
+          console.warn('No moves found for user Pokemon, using defaults');
+          setUserPokemonState(prev => ({ ...prev, moves: DEFAULT_MOVES }));
+          return;
         }
 
-        setUserPokemonState(prev => ({
-          ...prev,
-          moves: movesData
-        }));
+        const movesWithDetails = await Promise.all(
+          selectedMoves.map(async (moveData) => {
+            try {
+              if (!moveData?.move?.url) {
+                console.warn('Move URL not found:', moveData);
+                return DEFAULT_MOVES[0];
+              }
+
+              const moveDetails = await getMoveDetails(moveData.move.url);
+              return {
+                name: moveDetails?.name?.replace(/-/g, ' ') || 'Tackle',
+                power: moveDetails?.power || 40,
+                type: moveDetails?.type?.name || 'normal'
+              };
+            } catch (error) {
+              console.error('Error fetching move details:', error);
+              return DEFAULT_MOVES[0];
+            }
+          })
+        );
+
+        console.log('User Pokemon moves with details:', movesWithDetails);
+        setUserPokemonState(prev => ({ ...prev, moves: movesWithDetails }));
+      } catch (err) {
+        console.error('Error fetching move details for user Pokemon:', err);
+        setUserPokemonState(prev => ({ ...prev, moves: DEFAULT_MOVES }));
       }
-    }
+    };
 
     fetchMoveDetails();
   }, [userPokemon]);
 
-  const [wildPokemonState, setWildPokemonState] = useState(null);
-
+  // Fetch detailed move data for wild Pokemon
   useEffect(() => {
-    const fetchWildPokemon = async () => {
+    const fetchWildPokemonMoveDetails = async () => {
       try {
-        const pokemon = await getWildPokemon(1);
-        console.log('Fetched wild Pokemon data:', pokemon);
+        console.log('Fetching move details for wild Pokemon...');
+        setIsLoading(true);
         
-        if (!pokemon) {
-          throw new Error('Failed to fetch wild Pokemon data');
-        }
-
-        const baseStats = {
-          hp: pokemon?.stats?.[0]?.base_stat || DEFAULT_STATS.hp,
-          attack: pokemon?.stats?.[1]?.base_stat || DEFAULT_STATS.attack,
-          defense: pokemon?.stats?.[2]?.base_stat || DEFAULT_STATS.defense,
-          speed: pokemon?.stats?.[5]?.base_stat || DEFAULT_STATS.speed
-        };
-
-        // Fetch detailed move data for wild Pokemon
-        let movesData = DEFAULT_MOVES;
-        
-        if (Array.isArray(pokemon?.moves)) {
-          const selectedMoves = pokemon.moves.slice(0, 4);
+        // Check if the wild Pokémon has moves
+        if (!wildPokemon?.moves || !Array.isArray(wildPokemon.moves) || wildPokemon.moves.length === 0) {
+          console.warn('No moves found for wild Pokemon, using default move set');
+          // Create default moves based on the Pokémon's type
+          const type = wildPokemon?.type?.[0] || wildPokemon?.types?.[0]?.type?.name || 'normal';
           
-          const movesWithDetails = await Promise.all(
-            selectedMoves.map(async (moveData) => {
-              try {
-                // Check if moveData and moveData.move exist before accessing url
-                if (!moveData?.move?.url) {
-                  console.warn('Move URL not found:', moveData);
-                  return {
-                    name: moveData?.move?.name?.replace(/-/g, ' ') || 'Tackle',
-                    power: 40,
-                    type: 'normal'
-                  };
-                }
-
-                const moveDetails = await getMoveDetails(moveData.move.url);
-                return {
-                  name: moveDetails?.name?.replace(/-/g, ' ') || 'Tackle',
-                  power: moveDetails?.power || 40,
-                  type: moveDetails?.type?.name || 'normal'
-                };
-              } catch (error) {
-                console.error('Error fetching move details:', error);
-                return {
-                  name: moveData?.move?.name?.replace(/-/g, ' ') || 'Tackle',
-                  power: 40,
-                  type: 'normal'
-                };
-              }
-            })
-          );
-
-          movesData = movesWithDetails;
+          // Generate a type-appropriate default move
+          const defaultTypeMove = {
+            name: `${type} attack`,
+            power: 40,
+            type: type
+          };
+          
+          // Set default moves including a type-based move
+          const defaultMoves = [
+            defaultTypeMove,
+            { name: 'tackle', power: 35, type: 'normal' },
+            { name: 'growl', power: 0, type: 'normal' },
+            { name: 'tail whip', power: 0, type: 'normal' }
+          ];
+          
+          setWildPokemonState(prev => ({ ...prev, moves: defaultMoves }));
+          setIsLoading(false);
+          return;
         }
 
-        const wildPokemonData = {
-          id: pokemon?.id,
-          name: pokemon?.name?.charAt(0).toUpperCase() + (pokemon?.name?.slice(1) || '') || 'Wild Pokemon',
-          baseStats,
-          currentHp: baseStats.hp,
-          level: pokemon?.level || Math.max(1, userPokemonState.level - 2),
-          moves: movesData,
-          types: pokemon?.types?.map(type => type?.type?.name).filter(Boolean) || ['normal']
-        };
+        const selectedMoves = wildPokemon.moves.slice(0, 4);
+        
+        const movesWithDetails = await Promise.all(
+          selectedMoves.map(async (moveData) => {
+            try {
+              if (!moveData?.move?.url) {
+                console.warn('Wild Pokemon move URL not found:', moveData);
+                return DEFAULT_MOVES[0];
+              }
 
-        console.log('Initialized wildPokemonState:', wildPokemonData);
-        setWildPokemonState(wildPokemonData);
-        setIsLoading(false);
+              const moveDetails = await getMoveDetails(moveData.move.url);
+              return {
+                name: moveDetails?.name?.replace(/-/g, ' ') || 'Tackle',
+                power: moveDetails?.power || 40,
+                type: moveDetails?.type?.name || 'normal'
+              };
+            } catch (error) {
+              console.error('Error fetching wild Pokemon move details:', error);
+              return DEFAULT_MOVES[0];
+            }
+          })
+        );
+
+        console.log('Wild Pokemon moves with details:', movesWithDetails);
+        setWildPokemonState(prev => ({ ...prev, moves: movesWithDetails }));
       } catch (err) {
-        console.error('Error fetching wild Pokemon:', err);
-        setError('Failed to fetch wild Pokemon');
+        console.error('Error fetching move details for wild Pokemon:', err);
+        setWildPokemonState(prev => ({ ...prev, moves: DEFAULT_MOVES }));
+      } finally {
         setIsLoading(false);
       }
     };
 
-    fetchWildPokemon();
-  }, [userPokemonState.level]);
+    fetchWildPokemonMoveDetails();
+  }, [wildPokemon]);
 
   // Add this damage calculation function near the other utility functions
   const calculateMoveDamage = (attacker, defender, move) => {
@@ -352,13 +362,15 @@ const BattleArena = ({ userPokemon, onBattleEnd }) => {
   if (!wildPokemonState) return <div className="text-center p-4">Preparing battle...</div>;
 
   // Get Pokemon image URLs with fallbacks
-  const userPokemonImage = userPokemon?.id ? 
-    `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/${userPokemon.id}.png` :
-    'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/1.png';
+  const userPokemonImage = userPokemon?.sprites?.back_default || 
+    (userPokemon?.id ? 
+      `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/${userPokemon.id}.png` :
+      'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/1.png');
   
-  const wildPokemonImage = wildPokemonState?.id ?
-    `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${wildPokemonState.id}.png` :
-    'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/1.png';
+  const wildPokemonImage = wildPokemon?.sprites?.front_default || 
+    (wildPokemon?.id ?
+      `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${wildPokemon.id}.png` :
+      'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/1.png');
 
   return (
     <div className="container mx-auto p-4">
@@ -370,6 +382,10 @@ const BattleArena = ({ userPokemon, onBattleEnd }) => {
               src={userPokemonImage} 
               alt={userPokemonState.name || 'Your Pokemon'} 
               className="w-48 h-48 mx-auto pixelated"
+              onError={(e) => {
+                console.warn('Failed to load user Pokemon image, falling back to default');
+                e.target.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/1.png';
+              }}
             />
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
@@ -421,6 +437,10 @@ const BattleArena = ({ userPokemon, onBattleEnd }) => {
               src={wildPokemonImage} 
               alt={wildPokemonState.name || 'Wild Pokemon'} 
               className="w-48 h-48 mx-auto pixelated"
+              onError={(e) => {
+                console.warn('Failed to load wild Pokemon image, falling back to default');
+                e.target.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/1.png';
+              }}
             />
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
