@@ -31,6 +31,7 @@ const App = () => {
                   <Route path="roster" element={<MyRoster />} />
                   <Route path="battle" element={<BattlePage />} />
                   <Route path="pokemon/:id" element={<PokemonDetails />} />
+                  <Route path="leaderboard" element={<Leaderboard />} />
                 </Route>
               </Route>
             </Routes>
